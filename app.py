@@ -4,6 +4,9 @@ import os
 import pandas as pd
 from datetime import datetime, timedelta
 from pytrends.request import TrendReq
+import streamlit as st
+
+# ------- MODELO Y TENDENCIA (GOOGLE TRENDS) -------
 
 class ModeloPrecios:
     def __init__(self, alpha=0.1, gamma=0.9):
@@ -97,23 +100,23 @@ def inicializar_historico():
     else:
         print("El archivo historico_alquileres.csv ya contiene datos.")
 
-
 if __name__ == "__main__":
     inicializar_historico()
 
-
-import streamlit as st
-
-# ---------- MODELO Y TENDENCIA GLOBAL ----------
-modelo = ModeloPrecios()
-indice_trends = modelo.obtener_o_actualizar_tendencia()
+# ------- STREAMLIT UI -------
 
 st.title("App de Precios Dinámicos para Alquiler de Furgonetas")
 
-# ---------- SECCIÓN 1: DECISIÓN DE PRECIO PARA HOY ----------
-st.header("1. Decisión de Precio para Hoy")
+modelo = ModeloPrecios()
+try:
+    indice_trends = modelo.obtener_o_actualizar_tendencia()
+except Exception as e:
+    st.warning(f"Error obteniendo Google Trends: {e}")
+    indice_trends = 50  # Valor por defecto si hay error
 
-st.info(f"Índice Google Trends semanal (más reciente): **{indice_trends}**")
+# --- Sección: Decisión de Precio Hoy ---
+st.header("1. Decisión de Precio para Hoy")
+st.info(f"Índice de Tendencia Global actual (Google Trends): **{indice_trends}**")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -132,9 +135,8 @@ if st.button("Obtener Precio Propuesto"):
     precio_optimo = modelo.obtener_precio_optimo(estado_hoy)
     st.header(f"PRECIO ÓPTIMO RECOMENDADO: {precio_optimo} €")
 
-
-# ---------- SECCIÓN 2: APRENDIZAJE Y ACTUALIZACIÓN DE LA TABLA Q ----------
-st.header("2. Aprendizaje y Actualización de la Tabla Q (Resultados de AYER)")
+# --- Sección: Actualización del Modelo con Resultados de Ayer ---
+st.header("2. Actualización del Modelo con Resultados de AYER")
 with st.form("form_update_q"):
     st.subheader("Resultados de AYER")
     reservas_ayer = st.number_input("Reservas concretadas AYER", min_value=0, max_value=100, value=2, step=1)
@@ -148,17 +150,14 @@ with st.form("form_update_q"):
 
     if submitted:
         recompensa = reservas_ayer * precio_fijado_ayer
-
         estado_antiguo = modelo._discretizar_estado(disponibilidad_ayer, precio_competidor_ayer, indice_trends_ayer)
         estado_nuevo = modelo._discretizar_estado(disponibilidad_hoy, precio_competidor_hoy, indice_trends)
-
         try:
             accion_idx = np.where(modelo.precios_posibles == precio_fijado_ayer)[0][0]
         except IndexError:
-            accion_idx = 0  # Por si el precio no está en el espacio de acciones
+            accion_idx = 0  # Si el precio no está en el espacio de acciones
 
         modelo.actualizar_q_table(estado_antiguo, accion_idx, recompensa, estado_nuevo)
-
         df_hist = pd.DataFrame([{
             "fecha": datetime.today().strftime("%Y-%m-%d"),
             "disponibilidad_inicial": disponibilidad_ayer,
@@ -168,19 +167,15 @@ with st.form("form_update_q"):
             "precio_competidor": precio_competidor_ayer,
             "indice_google_trends": indice_trends_ayer
         }])
-
         historico_path = "historico_alquileres.csv"
         if os.path.exists(historico_path):
             df_hist.to_csv(historico_path, mode='a', header=False, index=False)
         else:
             df_hist.to_csv(historico_path, index=False)
-
         st.success("Modelo Actualizado y Datos Guardados.")
 
-
-# ---------- SECCIÓN 3: VISUALIZACIÓN DE INGRESOS ----------
+# --- Sección: Visualización ---
 st.header("3. Evolución del Ingreso Diario (últimas 30 operaciones)")
-
 if os.path.exists("historico_alquileres.csv"):
     df = pd.read_csv("historico_alquileres.csv")
     if not df.empty:
@@ -195,4 +190,3 @@ if os.path.exists("historico_alquileres.csv"):
         st.info("No hay datos históricos suficientes para mostrar el gráfico.")
 else:
     st.info("No existe el archivo de histórico. Añade datos primero.")
-

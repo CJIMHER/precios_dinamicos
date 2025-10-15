@@ -1,6 +1,8 @@
 import numpy as np
 import joblib
 import os
+import pandas as pd
+from datetime import datetime, timedelta
 
 class ModeloPrecios:
     def __init__(self):
@@ -26,11 +28,6 @@ class ModeloPrecios:
     def _guardar_q_table(self):
         """Guarda la tabla Q en q_table.pkl."""
         joblib.dump(self.q_table, "q_table.pkl")
-
-import pandas as pd
-import numpy as np
-import os
-from datetime import datetime, timedelta
 
 def inicializar_historico():
     archivo = "historico_alquileres.csv"
